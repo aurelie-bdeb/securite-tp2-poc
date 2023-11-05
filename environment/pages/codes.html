@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Codes nucléaires</title>
+    <script>
+        function deconnecter() {
+          if (navigator.userAgent.toLowerCase().includes('firefox')) {
+            const newUrl = new URL(location.href.replace("://", "://_:_@"));
+            newUrl.searchParams.set("deconnexion", "true");
+            window.location = newUrl.toString();
+          } else {
+            window.location = `/deconnecter?rediriger_url=${location.pathname}`
+          }
+        }
+    </script>
+</head>
+<body>
+    <h1>Bienvenue</h1>
+    Code nucléaires: <pre style="display: inline">424242</pre>
+    <button onclick="deconnecter()">Déconnexion</button>
+</body>
+</html>

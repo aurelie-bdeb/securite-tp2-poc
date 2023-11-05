@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Codes nucléaires</title>
+    <script>
+      const url = new URL(location.href)
+      if (url.searchParams.has("deconnexion")) {
+        url.searchParams.delete("deconnexion");
+        window.location.href = url.toString();
+      }
+    </script>
+</head>
+<body>
+  <h1>Mauvais mot de passe !</h1>
+</body>
+</html>
