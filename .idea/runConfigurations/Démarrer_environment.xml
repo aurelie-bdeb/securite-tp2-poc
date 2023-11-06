@@ -1,12 +1,13 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Démarrer environment" type="Python.FastAPI">
     <option name="additionalOptions" value="--reload " />
-    <option name="file" value="$PROJECT_DIR$/environment/main.py" />
+    <option name="file" value="$PROJECT_DIR$/environnement/main.py" />
     <module name="environnement" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
-    <option name="SDK_HOME" value="" />
-    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/environment" />
+    <option name="SDK_HOME" value="$PROJECT_DIR$/environnement/venv/bin/python" />
+    <option name="SDK_NAME" value="Python 3.11 (environnement)" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/environnement" />
     <option name="IS_MODULE_SDK" value="true" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
