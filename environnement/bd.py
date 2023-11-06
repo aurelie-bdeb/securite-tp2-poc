@@ -6,8 +6,8 @@ from getpass import getpass
 from hashlib import pbkdf2_hmac
 from typing import Optional
 
-PBKDF2_ITERATIONS = 300_000
-PBKDF2_ALGORITHME = "blake2b"
+PBKDF2_ITERATIONS = 600_000
+PBKDF2_ALGORITHME = "sha256"
 LONGUEUR_SALT = 32
 
 bd = sqlite3.connect("bd.sqlite3", isolation_level=None)
