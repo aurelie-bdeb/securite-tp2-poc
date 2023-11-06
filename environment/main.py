@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import FastAPI, Depends
 from fastapi.exceptions import RequestValidationError
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from starlette.requests import Request
 from starlette.responses import RedirectResponse, FileResponse, HTMLResponse
 
 import bd
@@ -15,20 +16,43 @@ app = FastAPI(
 basic_scheme = HTTPBasic(auto_error=False)
 
 
+@app.middleware("http")
+async def deactiver_cache(request: Request, call_next):
+    """
+    Middleware qui intercepte les réponses et s'assure que les navigateurs ne la cacheron pas
+    :param request: La requête interceptée
+    :param call_next: La prochaine fonction dans la chaine d'éxécution
+    :return: La réponse à retourner au client
+    """
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(_request, _exc):
+    """
+    Handler pour les exceptions de validations pour afficher une page HTML à la place d'une réponse JSON moche
+    :param _request: La requête qui a échoué
+    :param _exc: L'erreur qui s'est produite
+    :return: Une page d'erreur
+    :rtype: FileResponse
+    """
     return FileResponse("pages/erreur.html", status_code=422)
 
 
-@app.get("/secure", name="Comparaison sécuritaire", response_class=HTMLResponse, responses={401: {"model": str}})
+@app.get("/secure", name="Validation sécuritaire", response_class=HTMLResponse, responses={401: {"model": str}})
 async def secure(
         identification: Annotated[HTTPBasicCredentials, Depends(basic_scheme)]
 ) -> FileResponse:
     """
-    Compare **sécuritairement** une clé à une autre sur le serveur
+    Vérifie de façon sécuritaire les informations de l'usager avant d'afficher la page authentifiée
     """
-
-    if identification is None or not bd.verifier_mot_de_passe_secure(identification.username, identification.password):
+    if identification is None or not bd.verifier_mot_de_passe(
+            identification.username,
+            identification.password,
+            True
+    ):
         return FileResponse(
             "pages/mauvais_mdp.html",
             401,
@@ -37,12 +61,13 @@ async def secure(
     return FileResponse("pages/codes.html")
 
 
-@app.get("/vulnerable", name="Comparaison vulnérable", response_class=HTMLResponse, responses={401: {"model": str}})
+@app.get("/vulnerable", name="Validation vulnérable", response_class=HTMLResponse, responses={401: {"model": str}})
 async def vulnerable(
         identification: Annotated[HTTPBasicCredentials, Depends(basic_scheme)]
 ) -> FileResponse:
     """
-    Compare **dangereusement** (par défaut) une clé à une autre sur le serveur
+    Vérifie de façon vulnérable aux attaques temporelles les informations de l'usager avant
+        d'afficher la page authentifiée
     """
     if identification is None or not bd.verifier_mot_de_passe(identification.username, identification.password):
         return FileResponse(
@@ -54,20 +79,17 @@ async def vulnerable(
 
 
 @app.get("/deconnecter", name="Déconnecter",
-         response_class=HTMLResponse, status_code=401, responses={302: {}, 422: {"model": str}}
+         response_class=HTMLResponse, status_code=401, responses={422: {"model": str}}
          )
-async def deconnecter(rediriger_url: str, rediriger: bool = False):
+async def deconnecter(_rediriger_url: str):
     """
-    Montre une page qui déconnecte l'utilisateur
+    Affiche une page qui, sur Chrome, déconnecte l'usager. On affiche une page 401 pour faire oublier les informations,
+        et ensuite la page qu'on affiche utilise du JavaScript pour rediriger l'usager sur la page initiale
     """
-    if not rediriger:
-        return FileResponse(
-            "pages/deconnexion.html",
-            401,
-            {"Refresh": f"0;url=/deconnecter?rediriger=true&rediriger_url={rediriger_url}"}
-        )
-    else:
-        return RedirectResponse(rediriger_url, 302)
+    return FileResponse(
+        "pages/deconnexion.html",
+        401
+    )
 
 
 @app.get("/", response_class=RedirectResponse, include_in_schema=False)

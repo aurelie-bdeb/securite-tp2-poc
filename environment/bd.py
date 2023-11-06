@@ -6,9 +6,14 @@ from getpass import getpass
 from hashlib import pbkdf2_hmac
 from typing import Optional
 
+PBKDF2_ITERATIONS = 300_000
+PBKDF2_ALGORITHME = "blake2b"
+LONGUEUR_SALT = 32
+
 bd = sqlite3.connect("bd.sqlite3", isolation_level=None)
 curseur = bd.cursor()
 
+# Création de la table si elle n'existe pas déja
 curseur.execute("""
 CREATE TABLE IF NOT EXISTS usagers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -18,51 +23,70 @@ CREATE TABLE IF NOT EXISTS usagers (
 );
 """)
 
-PBKDF2_ITERATIONS = 300_000
-PBKDF2_ALGORITHME = "blake2b"
-LONGUEUR_SALT = 32
-
 
 def usager_existe(nom: str) -> bool:
+    """
+    Vérifie si un usager de ce nom éxiste
+    :param nom: Nom de l'usager
+    :type nom: str
+    :return: Si un usager portant ce nom existe
+    :rtype: bool
+    """
     return curseur.execute("SELECT 1 FROM usagers WHERE nom = ?", [nom]).fetchone() is not None
 
 
-def verifier_mot_de_passe(nom: str, mot_de_passe: str) -> bool:
+def verifier_mot_de_passe(nom: str, mot_de_passe: str, securitaire=False) -> bool:
+    """
+    Vérifie une combinaison nom d'usager/mot de passe, vulnérable aux attaques temporelles
+    :param nom: Nom d'usager à vérifier
+    :type nom: str
+    :param mot_de_passe: Mot de passe à vérifier
+    :type mot_de_passe: str
+    :param securitaire: Valide la combinaison nom d'usager/mot de passe en utilisant
+        un algorithme résistant aux attaques temporelles  
+    :type securitaire: bool
+    :return: Si la combinaison nom d'usager/mot de passe est valide
+    :rtype: bool
+    """
     usager = curseur.execute("""
     SELECT hash, salt FROM usagers
     WHERE nom = ?
     """, [nom]).fetchone()
 
     if usager is None:
-        return False
-
-    [hash_correct, salt] = usager
-    hash_test = pbkdf2_hmac(PBKDF2_ALGORITHME, mot_de_passe.encode("utf8"), salt, PBKDF2_ITERATIONS)
-    if hash_correct != hash_test:
-        return False
-
-    return True
-
-
-def verifier_mot_de_passe_secure(nom: str, mot_de_passe: str) -> bool:
-    usager = curseur.execute("""
-    SELECT hash, salt FROM usagers
-    WHERE nom = ?
-    """, [nom]).fetchone()
-
-    if usager is None:
-        pbkdf2_hmac(PBKDF2_ALGORITHME, mot_de_passe.encode("utf8"), os.urandom(LONGUEUR_SALT), PBKDF2_ITERATIONS)
+        if securitaire:
+            pbkdf2_hmac(
+                PBKDF2_ALGORITHME, 
+                mot_de_passe.encode("utf8"), 
+                os.urandom(LONGUEUR_SALT), 
+                PBKDF2_ITERATIONS
+            )
         return False
     else:
         [hash_correct, salt] = usager
-        hash_test = pbkdf2_hmac(PBKDF2_ALGORITHME, mot_de_passe.encode("utf8"), salt, PBKDF2_ITERATIONS)
+        hash_test = pbkdf2_hmac(
+            PBKDF2_ALGORITHME, 
+            mot_de_passe.encode("utf8"), 
+            salt, 
+            PBKDF2_ITERATIONS
+        )
         if hash_correct != hash_test:
             return False
 
     return True
 
 
-def cmd_creer_usager(nom: str, mot_de_passe: Optional[str]):
+def cmd_creer_usager(nom: str, mot_de_passe: Optional[str]) -> None:
+    """
+    Commande administrative pour créer un nouvel usager
+    :param nom: Nom de l'usager à créer
+    :type nom: str
+    :param mot_de_passe: Mot de passe de l'usager à créer
+    :type mot_de_passe: str
+    :raises: ValueError
+    :return: None
+    :rtype: None
+    """
     if usager_existe(nom):
         raise ValueError("Usager existe déja")
 
@@ -70,7 +94,12 @@ def cmd_creer_usager(nom: str, mot_de_passe: Optional[str]):
         mot_de_passe = getpass("Mot de passe: ")
 
     salt = os.urandom(LONGUEUR_SALT)
-    mdp_hash = pbkdf2_hmac(PBKDF2_ALGORITHME, mot_de_passe.encode("utf8"), salt, PBKDF2_ITERATIONS)
+    mdp_hash = pbkdf2_hmac(
+        PBKDF2_ALGORITHME,
+        mot_de_passe.encode("utf8"),
+        salt,
+        PBKDF2_ITERATIONS
+    )
     curseur.execute("""
     INSERT INTO usagers(nom, hash, salt)
     VALUES (?, ?, ?)
@@ -79,7 +108,15 @@ def cmd_creer_usager(nom: str, mot_de_passe: Optional[str]):
     print(f"Usager {nom} créé")
 
 
-def cmd_supprimer_usager(nom: str):
+def cmd_supprimer_usager(nom: str) -> None:
+    """
+    Commande administrative pour supprimer un usager
+    :param nom: Nom de l'usager à supprimer
+    :type nom: str
+    :raises: ValueError
+    :return: None
+    :rtype: None
+    """
     if not usager_existe(nom):
         raise ValueError("Usager n'existe pas")
 
@@ -91,7 +128,17 @@ def cmd_supprimer_usager(nom: str):
     print(f"Usager {nom} supprimé")
 
 
-def cmd_changer_mot_de_passe(nom: str, mot_de_passe: Optional[str]):
+def cmd_changer_mot_de_passe(nom: str, mot_de_passe: Optional[str]) -> None:
+    """
+    Commande administrative pour changer le mot de passe d'un usager
+    :param nom: Le nom de l'usager du mot de passe à changer
+    :type nom: str
+    :param mot_de_passe: Le nouveau mot de passe de cet usager
+    :type nom: str
+    :raises: ValueError
+    :return: None
+    :rtype: None
+    """
     if not usager_existe(nom):
         raise ValueError("Usager n'existe pas")
 
@@ -99,7 +146,12 @@ def cmd_changer_mot_de_passe(nom: str, mot_de_passe: Optional[str]):
         mot_de_passe = getpass("Mot de passe: ")
 
     salt = os.urandom(LONGUEUR_SALT)
-    mdp_hash = pbkdf2_hmac(PBKDF2_ALGORITHME, mot_de_passe.encode("utf8"), salt, PBKDF2_ITERATIONS)
+    mdp_hash = pbkdf2_hmac(
+        PBKDF2_ALGORITHME,
+        mot_de_passe.encode("utf8"),
+        salt,
+        PBKDF2_ITERATIONS
+    )
     curseur.execute("""
     UPDATE usagers
     SET hash = ?, salt = ?
@@ -109,14 +161,19 @@ def cmd_changer_mot_de_passe(nom: str, mot_de_passe: Optional[str]):
     print(f"Mot de passe réinitialisé pour {nom}")
 
 
-def creer_parser():
+def creer_parser() -> argparse.ArgumentParser:
+    """
+    Crée un :class:`argparse.ArgumentParser` pour parse les commandes administratives
+    :return: Le :class:`argparse.ArgumentParser`
+    :rtype: argparse.ArgumentParser
+    """
     parser = argparse.ArgumentParser(
         description='Utilitaire de control de base de données',
         epilog='Alex Karkouche, Aurélie Marineau & Félix Leprohon')
     parser.set_defaults(func=lambda _: parser.print_help())
     subparser = parser.add_subparsers(metavar="sous-commande")
 
-    sub = subparser.add_parser("creer_usager", help='Créer un nouveau usager')
+    sub = subparser.add_parser("creer_usager", help='Créer un nouvel usager')
     sub.add_argument("nom", help="Nom d'usager")
     sub.add_argument("mot_de_passe", help="Mot de passe, omettre pour demander", nargs="?")
     sub.set_defaults(func=lambda x: cmd_creer_usager(x.nom, x.mot_de_passe))
