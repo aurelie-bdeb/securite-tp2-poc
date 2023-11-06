@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import FastAPI, Depends
 from fastapi.exceptions import RequestValidationError
+from fastapi.params import Query
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, FileResponse, HTMLResponse
@@ -81,7 +82,7 @@ async def vulnerable(
 @app.get("/deconnecter", name="Déconnecter",
          response_class=HTMLResponse, status_code=401, responses={422: {"model": str}}
          )
-async def deconnecter(_rediriger_url: str):
+async def deconnecter(_rediriger_url: str = Query(None, alias="rediriger_url")):
     """
     Affiche une page qui, sur Chrome, déconnecte l'usager. On affiche une page 401 pour faire oublier les informations,
         et ensuite la page qu'on affiche utilise du JavaScript pour rediriger l'usager sur la page initiale

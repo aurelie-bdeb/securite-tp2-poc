@@ -9,6 +9,7 @@ from typing import Optional
 PBKDF2_ITERATIONS = 600_000
 PBKDF2_ALGORITHME = "sha256"
 LONGUEUR_SALT = 32
+SALT_VIDE = os.urandom(LONGUEUR_SALT)
 
 bd = sqlite3.connect("bd.sqlite3", isolation_level=None)
 curseur = bd.cursor()
@@ -57,8 +58,8 @@ def verifier_mot_de_passe(nom: str, mot_de_passe: str, securitaire=False) -> boo
         if securitaire:
             pbkdf2_hmac(
                 PBKDF2_ALGORITHME, 
-                mot_de_passe.encode("utf8"), 
-                os.urandom(LONGUEUR_SALT), 
+                mot_de_passe.encode("utf8"),
+                SALT_VIDE,
                 PBKDF2_ITERATIONS
             )
         return False
