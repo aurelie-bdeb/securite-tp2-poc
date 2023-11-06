@@ -4,6 +4,7 @@ import os
 import sqlite3
 from getpass import getpass
 from hashlib import pbkdf2_hmac
+from sqlite3 import IntegrityError
 from typing import Optional
 
 PBKDF2_ITERATIONS = 600_000
@@ -25,17 +26,6 @@ CREATE TABLE IF NOT EXISTS usagers (
 """)
 
 
-def usager_existe(nom: str) -> bool:
-    """
-    Vérifie si un usager de ce nom éxiste
-    :param nom: Nom de l'usager
-    :type nom: str
-    :return: Si un usager portant ce nom existe
-    :rtype: bool
-    """
-    return curseur.execute("SELECT 1 FROM usagers WHERE nom = ?", [nom]).fetchone() is not None
-
-
 def verifier_mot_de_passe(nom: str, mot_de_passe: str, securitaire=False) -> bool:
     """
     Vérifie une combinaison nom d'usager/mot de passe, vulnérable aux attaques temporelles
@@ -51,7 +41,7 @@ def verifier_mot_de_passe(nom: str, mot_de_passe: str, securitaire=False) -> boo
     """
     usager = curseur.execute("""
     SELECT hash, salt FROM usagers
-    WHERE nom = ?
+    WHERE nom = ?;
     """, [nom]).fetchone()
 
     if usager is None:
@@ -88,9 +78,6 @@ def cmd_creer_usager(nom: str, mot_de_passe: Optional[str]) -> None:
     :return: None
     :rtype: None
     """
-    if usager_existe(nom):
-        raise ValueError("Usager existe déja")
-
     if mot_de_passe is None:
         mot_de_passe = getpass("Mot de passe: ")
 
@@ -101,10 +88,14 @@ def cmd_creer_usager(nom: str, mot_de_passe: Optional[str]) -> None:
         salt,
         PBKDF2_ITERATIONS
     )
-    curseur.execute("""
-    INSERT INTO usagers(nom, hash, salt)
-    VALUES (?, ?, ?)
-    """, [nom, mdp_hash, salt])
+    try:
+        curseur.execute("""
+        INSERT INTO usagers(nom, hash, salt)
+        VALUES (?, ?, ?);
+        """, [nom, mdp_hash, salt])
+    except IntegrityError:
+        print(f"Usager {nom} existe déja")
+        return
 
     print(f"Usager {nom} créé")
 
@@ -118,13 +109,13 @@ def cmd_supprimer_usager(nom: str) -> None:
     :return: None
     :rtype: None
     """
-    if not usager_existe(nom):
-        raise ValueError("Usager n'existe pas")
-
-    curseur.execute("""
+    changements = curseur.execute("""
     DELETE FROM usagers
-    WHERE nom == ?
-    """, [nom])
+    WHERE nom == ?;
+    """, [nom]).rowcount
+    if changements == 0:
+        print(f"Usager {nom} n'existe pas")
+        return
 
     print(f"Usager {nom} supprimé")
 
@@ -140,9 +131,6 @@ def cmd_changer_mot_de_passe(nom: str, mot_de_passe: Optional[str]) -> None:
     :return: None
     :rtype: None
     """
-    if not usager_existe(nom):
-        raise ValueError("Usager n'existe pas")
-
     if mot_de_passe is None:
         mot_de_passe = getpass("Mot de passe: ")
 
@@ -153,13 +141,32 @@ def cmd_changer_mot_de_passe(nom: str, mot_de_passe: Optional[str]) -> None:
         salt,
         PBKDF2_ITERATIONS
     )
-    curseur.execute("""
+    changement = curseur.execute("""
     UPDATE usagers
     SET hash = ?, salt = ?
-    WHERE nom = ?
-    """, [mdp_hash, salt, nom])
+    WHERE nom = ?;
+    """, [mdp_hash, salt, nom]).rowcount
+
+    if changement == 0:
+        print(f"Usager {nom} n'existe pas")
+        return
 
     print(f"Mot de passe réinitialisé pour {nom}")
+
+
+def cmd_afficher_usagers() -> None:
+    """
+    Affiche tous les usagers dans la base de données
+    :return: None
+    :rtype: None
+    """
+    nombre_usagers = 0
+    usagers = curseur.execute("""SELECT nom FROM usagers;""")
+    for usager in usagers:
+        print(usager[0])
+        nombre_usagers += 1
+    print("==============")
+    print(f"{nombre_usagers} usagers.")
 
 
 def creer_parser() -> argparse.ArgumentParser:
@@ -187,6 +194,9 @@ def creer_parser() -> argparse.ArgumentParser:
     sub.add_argument("nom", help="Nom d'usager")
     sub.add_argument("mot_de_passe", help="Mot de passe, omettre pour demander", nargs="?")
     sub.set_defaults(func=lambda x: cmd_changer_mot_de_passe(x.nom, x.mot_de_passe))
+
+    sub = subparser.add_parser("afficher_usagers", help="Lister tous les usagers du système")
+    sub.set_defaults(func=lambda x: cmd_afficher_usagers())
 
     return parser
 
