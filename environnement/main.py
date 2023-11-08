@@ -1,3 +1,4 @@
+import random
 from typing import Annotated
 
 from fastapi import FastAPI, Depends
@@ -57,7 +58,7 @@ async def secure(
         return FileResponse(
             "pages/mauvais_mdp.html",
             401,
-            {"WWW-Authenticate": "Basic"}
+            {"WWW-Authenticate": "Basic realm=" + str(random.random())}
         )
     return FileResponse("pages/codes.html")
 
@@ -74,7 +75,7 @@ async def vulnerable(
         return FileResponse(
             "pages/mauvais_mdp.html",
             401,
-            {"WWW-Authenticate": "Basic"}
+            {"WWW-Authenticate": "Basic realm=" + str(random.random())}
         )
     return FileResponse("pages/codes.html")
 

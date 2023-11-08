@@ -19,7 +19,7 @@ curseur = bd.cursor()
 curseur.execute("""
 CREATE TABLE IF NOT EXISTS usagers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nom TEXT UNIQUE NOT NULL,
+    nom TEXT UNIQUE NOT NULL COLLATE NOCASE,
     hash BLOB NOT NULL,
     salt BLOB NOT NULL
 );
