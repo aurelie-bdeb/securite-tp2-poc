@@ -47,7 +47,7 @@ def verifier_mot_de_passe(nom: str, mot_de_passe: str, securitaire=False) -> boo
     if usager is None:
         if securitaire:
             pbkdf2_hmac(
-                PBKDF2_ALGORITHME, 
+                PBKDF2_ALGORITHME,
                 mot_de_passe.encode("utf8"),
                 SALT_VIDE,
                 PBKDF2_ITERATIONS
@@ -56,9 +56,9 @@ def verifier_mot_de_passe(nom: str, mot_de_passe: str, securitaire=False) -> boo
     else:
         [hash_correct, salt] = usager
         hash_test = pbkdf2_hmac(
-            PBKDF2_ALGORITHME, 
-            mot_de_passe.encode("utf8"), 
-            salt, 
+            PBKDF2_ALGORITHME,
+            mot_de_passe.encode("utf8"),
+            salt,
             PBKDF2_ITERATIONS
         )
         if hash_correct != hash_test:
